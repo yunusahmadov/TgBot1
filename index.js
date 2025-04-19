@@ -1,43 +1,31 @@
 require("dotenv").config();
+const express = require("express");
+const bodyParser = require("body-parser");
 const TelegramBot = require("node-telegram-bot-api");
 const axios = require("axios");
 
-const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
+const app = express();
+const port = process.env.PORT || 3000;
 
-// 📦 Получение AI-совета от OpenRouter через Mistral
-async function getAIClothingAdvice(city, temp, feelsLike, description) {
-  const prompt = `В городе ${city} сейчас ${temp}°C (ощущается как ${feelsLike}°C), на улице ${description}.
-Что бы ты посоветовал надеть человеку? Напиши кратко и дружелюбно.`;
+// ✅ Настройка Telegram-бота с Webhook
+const bot = new TelegramBot(process.env.BOT_TOKEN);
+bot.setWebHook(`${process.env.BASE_URL}/bot${process.env.BOT_TOKEN}`);
 
-  try {
-    const response = await axios.post(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        model: "mistralai/mistral-small-3.1-24b-instruct:free",
-        messages: [
-          { role: "system", content: "Ты доброжелательный погодный помощник." },
-          { role: "user", content: prompt },
-        ],
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://yourapp.com", 
-          "X-Title": "WeatherBot",
-        },
-      }
-    );
+app.use(bodyParser.json());
 
-    const message = response.data.choices?.[0]?.message?.content;
-    return message || "🤖 AI не смог дать совет.";
-  } catch (err) {
-    console.error("Ошибка AI:", err.response?.data || err.message);
-    return "🤖 Не удалось получить совет от AI.";
-  }
-}
+// 📩 Обработка входящих сообщений
+app.post(`/bot${process.env.BOT_TOKEN}`, async (req, res) => {
+  const message = req.body.message;
+  const chatID = message.chat.id;
+  const text = message.text;
 
-// 🌤 Получение погоды и советов
+  const weather = await getWeather(text);
+  bot.sendMessage(chatID, weather);
+
+  res.sendStatus(200);
+});
+
+// 🌤 Получение погоды
 async function getWeather(city) {
   const apiKey = process.env.WEATHER_API_KEY;
   const url = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(
@@ -69,11 +57,40 @@ ${aiAdvice}
   }
 }
 
-// 🤖 Обработка сообщений
-bot.on("message", async (msg) => {
-  const chatID = msg.chat.id;
-  const text = msg.text;
+// 📦 Получение AI-совета
+async function getAIClothingAdvice(city, temp, feelsLike, description) {
+  const prompt = `В городе ${city} сейчас ${temp}°C (ощущается как ${feelsLike}°C), на улице ${description}.
+Что бы ты посоветовал надеть человеку? Напиши кратко и дружелюбно.`;
 
-  const weather = await getWeather(text);
-  bot.sendMessage(chatID, weather);
+  try {
+    const response = await axios.post(
+      "https://openrouter.ai/api/v1/chat/completions",
+      {
+        model: "mistralai/mistral-small-3.1-24b-instruct:free",
+        messages: [
+          { role: "system", content: "Ты доброжелательный погодный помощник." },
+          { role: "user", content: prompt },
+        ],
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://yourapp.com",
+          "X-Title": "WeatherBot",
+        },
+      }
+    );
+
+    const message = response.data.choices?.[0]?.message?.content;
+    return message || "🤖 AI не смог дать совет.";
+  } catch (err) {
+    console.error("Ошибка AI:", err.response?.data || err.message);
+    return "🤖 Не удалось получить совет от AI.";
+  }
+}
+
+// 🚀 Запуск сервера
+app.listen(port, () => {
+  console.log(`Сервер запущен на порту ${port}`);
 });
