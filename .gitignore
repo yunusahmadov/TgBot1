@@ -1,0 +1,22 @@
+# Node.js
+node_modules/
+
+# Папки и файлы конфигурации
+.env
+
+# Логи
+*.log
+
+# Системные файлы
+.DS_Store
+Thumbs.db
+
+# Местные файлы редакторов
+.vscode/
+.idea/
+
+# Для Windows
+npm-debug.log*
+
+# Для MacOS
+*.swp
